@@ -63,7 +63,6 @@ class display_module:
     
     def pygame_quit(self):
         self.stop_event.set()
-        print("pygame_quit")
     
     def update_image_path(self, new_image_path,scaling=False):
         self.current_image_path = new_image_path
