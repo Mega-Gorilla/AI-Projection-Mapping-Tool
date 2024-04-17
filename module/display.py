@@ -1,12 +1,17 @@
 import pygame,re
 from screeninfo import get_monitors
 from PIL import Image
-import io
+import threading
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import Qt
+import time
 
 class display_module:
 
     def __init__(self):
-        self.initialized = False
+        self.pygame_running = False
+        self.stop_event = threading.Event()
 
     def get_monitors_info(self):
         monitors_info = []
@@ -26,44 +31,46 @@ class display_module:
             })
         return monitors_info
 
-    def display_fullscreen_image(self, display_num,image_path=None,scaling=False):
-        print(f"draw_image:{image_path} / display Num:{display_num}")
-        if self.initialized is False:
-            pygame.init()
-        # ディスプレイ情報の取得
+    def display_fullscreen_image(self, display_num, image_path=None, scaling=False):
+        self.stop_event.clear()  # stop_eventを非設定状態に戻します
+        self.current_image_path = image_path
+        self.scaling = scaling
+        print(f"draw_image:{self.current_image_path} / display Num:{display_num}")
+        pygame.init()
         displays = pygame.display.get_num_displays()
-        if displays < 2:
+        if displays <= display_num:
             print("ディスプレイが見つかりませんでした。")
             return
-        # セカンドディスプレイのサイズを取得
-        second_display_info = pygame.display.Info()
-        screen_width, screen_height = second_display_info.current_w, second_display_info.current_h
 
-        # セカンドディスプレイのサーフェスを作成
-        screen = pygame.display.set_mode((screen_width, screen_height), pygame.FULLSCREEN, display=display_num)
+        self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN, display=display_num)
+        self.screen_width, self.screen_height = self.screen.get_size()
 
-        # 画像の読み込み
-        image = pygame.image.load(image_path)
+        while not self.stop_event.is_set():
+            self.load_and_display_image()
+            time.sleep(1)
+        pygame.quit()
+    
+    def load_and_display_image(self):
+        image = pygame.image.load(self.current_image_path)
         image_rect = image.get_rect()
-
-        # 画像のサイズをセカンドディスプレイのサイズに合わせてスケーリング
-        if scaling:
-            image = pygame.transform.scale(image, (screen_width, screen_height))
+        if self.scaling:
+            image = pygame.transform.scale(image, (self.screen_width, self.screen_height))
             position = (0, 0)
         else:
-            position = ((screen_width - image_rect.width) // 2, (screen_height - image_rect.height) // 2)
-
-        # 画像をセカンドディスプレイに表示
-        screen.blit(image, position)
-
+            position = ((self.screen_width - image_rect.width) // 2, (self.screen_height - image_rect.height) // 2)
+        self.screen.blit(image, position)
         pygame.display.flip()
-        self.initialized = True
-
+    
     def pygame_quit(self):
+        self.stop_event.set()
         print("pygame_quit")
-        pygame.quit()
-
-    def create_image(width, height, hex_color, filename):
+    
+    def update_image_path(self, new_image_path,scaling=False):
+        self.current_image_path = new_image_path
+        self.scaling = scaling
+        print(f"Image path updated to {new_image_path}")
+    
+    def create_image(self,width, height, hex_color, filename):
         """
         指定されたサイズとHEXカラーコードでPNG画像を生成し、指定されたファイル名で保存する。
 
@@ -80,12 +87,25 @@ class display_module:
         print(f"画像が {filename} として保存されました。")
 
 if __name__ == "__main__":
-    import time
     display_module = display_module()
+    image_path = './images/smpte_color_bars.png'
     monitors_info = display_module.get_monitors_info()
     print(monitors_info)
-    display_module.display_fullscreen_image(1,'02026.png')
+    display_num = 1
+    # ディスプレイに画像を表示するスレッドを開始
+    display_thread = threading.Thread(target=display_module.display_fullscreen_image,
+                                      args=(display_num, image_path, True))
+    display_thread.start()
+
+    # ユーザーの入力を待つ (例: エンターキーで終了)
     time.sleep(5)
-    display_module.display_fullscreen_image(1,'./images/smpte_color_bars.png',True)
-    time.sleep(5)
+    new_image_path = '02026.png'
+    display_module.update_image_path(new_image_path) 
+
+    input("Press Enter to quit...")
+
+    # pygame_quit を呼び出して、画像表示を終了
     display_module.pygame_quit()
+
+    # スレッドの終了を待つ
+    display_thread.join()
