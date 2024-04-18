@@ -1,6 +1,5 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
-from streamlit_image_select import image_select
 import threading
 import av
 import cv2
@@ -9,7 +8,7 @@ from module.display import display_module
 from module.clip_image import clip_image
 from module.sd_api import sam_predict,img2img_dpth_api
 from config import config
-import base64
+import os
 
 RTC_CONFIGURATION = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
@@ -37,7 +36,17 @@ class VideoTransformer(VideoProcessorBase):
             self.out_frame = img.copy()
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
-    
+
+def delete_png(folder_path):
+    for filename in os.listdir(folder_path):
+        # ファイルの拡張子が.pngであるかを確認
+        if filename.endswith(".png"):
+            # ファイルのフルパスを取得
+            file_path = os.path.join(folder_path, filename)
+            # ファイルが存在するかを確認
+            if os.path.isfile(file_path):
+                # ファイルを削除
+                os.remove(file_path)
 def initialize():
     if 'display_num' not in st.session_state:
         st.session_state.display_num = 1
@@ -67,6 +76,8 @@ def initialize():
         st.session_state.image_path_list = None
     if 'image_path' not in st.session_state:
         st.session_state.image_path = "./images/output/output_image_0.png"
+    if 'draw_image_path' not in st.session_state:
+        st.session_state.draw_image_path = None
 
 def main():
     initialize()
@@ -154,9 +165,10 @@ def main():
     i2i_image_path = './images/i2i_image.jpg'
     if webrtc_ctx.video_processor:
         #暗転処理
-        resolution_list = [int(number) for number in st.session_state.display_size.split('x')]
-        display.create_image(resolution_list[0],resolution_list[1],'#000000','./images/black_BG.png')
-        display.update_image_path('./images/black_BG.png',False)
+        if display.draw_image_path != './images/black_BG.png' and display.draw_image_path != None:
+            resolution_list = [int(number) for number in st.session_state.display_size.split('x')]
+            display.create_image(resolution_list[0],resolution_list[1],'#000000','./images/black_BG.png')
+            display.update_image_path('./images/black_BG.png',False)
 
         if st.button("スクリーンショットを撮影する",key="i2i_shutter"):
             with webrtc_ctx.video_processor.frame_lock:
@@ -177,44 +189,56 @@ def main():
         if st.button("Generate Mask",type='primary'):
             st.session_state.mask_path_list = sam_predict(i2i_image_path,st.session_state.dino_prompts)
     if st.session_state.mask_path_list is not None:
-        st.session_state.mask_path = image_select(label='Select Maks',
-                            images=st.session_state.mask_path_list)
-        st.write(st.session_state.mask_path)
+        columns = st.columns(len(st.session_state.mask_path_list))
+        for col, item in zip(columns, st.session_state.mask_path_list):
+            with col:
+                st.image(item)
+        st.session_state.mask_path = st.selectbox('Select Maks',st.session_state.mask_path_list)
     
     st.header("Step.5 img2img 設定",divider=True)
     col1,col2 = st.columns([3,1])
     with col1:
-        st.session_state.prompts = st.text_area(
+        prompt = st.text_area(
             "Prompt",
-            value=st.session_state.prompts,
             key="i2i_prompt"
         )
-        st.session_state.negative_prompts = st.text_area(
+        negative_prompts = st.text_area(
             "Negative prompt",
-            value=st.session_state.negative_prompts
         )
     with col2:
-        if st.button("Generate",type='primary'):
-            st.session_state.mask_path = None
-            if preset_prompt_on:
-                st.session_state.prompts = st.session_state.prompts + config.preset_prompt
-            if preset_ngprompt_on:
-                st.session_state.negative_prompts = st.session_state.negative_prompts + config.preset_ng_prompt
-            st.session_state.image_path_list = img2img_dpth_api(st.session_state.prompts,
-                                                 st.session_state.negative_prompts,
-                                                 i2i_image_path,
-                                                 st.session_state.mask_path,
-                                                 batch_size)
-
         preset_prompt_on = st.toggle("Basic Prompt")
         preset_ngprompt_on = st.toggle("Basic NG Prompt")
         batch_size = st.slider('Batch Size',1,10,3)
+        denoising_strength = st.slider('Denoising Strength',0.0,1.0,0.6)
+        if st.button("Generate",type='primary'):
+            if preset_prompt_on:
+                prompt = prompt + config.preset_prompt
+            if preset_ngprompt_on:
+                negative_prompts = negative_prompts + config.preset_ng_prompt
+            delete_png(config.output_path)
+            st.session_state.image_path_list = img2img_dpth_api(prompt,
+                                                 negative_prompts,
+                                                 i2i_image_path,
+                                                 st.session_state.mask_path,
+                                                 batch_size,
+                                                 denoising_strength=denoising_strength)
 
     if st.session_state.image_path_list != None:
-        st.session_state.image_path = image_select(label='Result Data',
-                            images = st.session_state.image_path_list)
-        st.write(st.session_state.mask_path)
-        display.update_image_path(st.session_state.mask_path,True)
+        columns = st.columns(len(st.session_state.image_path_list))
+        for col, item in zip(columns, st.session_state.image_path_list):
+            with col:
+                st.image(item)
+
+        st.session_state.image_path = st.selectbox('Result Data',st.session_state.image_path_list)
+        st.write(st.session_state.image_path)
+        draw_projector = st.toggle("プロジェクタへ描画")
+        if draw_projector:
+            display.update_image_path(st.session_state.image_path,True)
+        else:
+            if display.draw_image_path != './images/black_BG.png' and display.draw_image_path != None:
+                resolution_list = [int(number) for number in st.session_state.display_size.split('x')]
+                display.create_image(resolution_list[0],resolution_list[1],'#000000','./images/black_BG.png')
+                display.update_image_path('./images/black_BG.png',False)
 
 if __name__ == "__main__":
     main()
