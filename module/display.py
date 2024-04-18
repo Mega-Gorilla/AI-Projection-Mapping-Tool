@@ -12,6 +12,7 @@ class display_module:
     def __init__(self):
         self.pygame_running = False
         self.stop_event = threading.Event()
+        self.draw_image_path = None
 
     def get_monitors_info(self):
         monitors_info = []
@@ -63,11 +64,13 @@ class display_module:
     
     def pygame_quit(self):
         self.stop_event.set()
+        self.draw_image_path = None
     
     def update_image_path(self, new_image_path,scaling=False):
         self.current_image_path = new_image_path
         self.scaling = scaling
         print(f"Image path updated to {new_image_path}")
+        self.draw_image_path = new_image_path
     
     def create_image(self,width, height, hex_color, filename):
         """
