@@ -24,17 +24,20 @@ class clip_image:
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing == True:
                 img_copy = self.img.copy()
-                cv2.rectangle(img_copy, (self.ix, self.iy), (x, y), (0, 255, 0), 1)
+                # 64の倍数に調整
+                adjusted_x = x - (x - self.ix) % 16
+                adjusted_y = y - (y - self.iy) % 16
+                cv2.rectangle(img_copy, (self.ix, self.iy), (adjusted_x, adjusted_y), (0, 255, 0), 1)
                 cv2.imshow('clip_BG', img_copy)
 
         # マウスボタンが離されたとき
         elif event == cv2.EVENT_LBUTTONUP:
             self.drawing = False
-            self.rect_width = abs(x - self.ix)
-            self.rect_height = abs(y - self.iy)
+            # 64の倍数に調整
+            self.rect_width = abs(x - self.ix) - (abs(x - self.ix) % 16)
+            self.rect_height = abs(y - self.iy) - (abs(y - self.iy) % 16)
             self.crop_image(self.ix, self.iy, self.rect_width, self.rect_height)
             cv2.rectangle(self.img, (self.ix, self.iy), (x, y), (0, 255, 0), 1)
-            print(f"Rectangle coordinates: ({self.ix}, {self.iy}), Width: {self.rect_width}, Height: {self.rect_height}")
             self.exit_flag = True
 
     def crop_image(self,x, y, width, height):
