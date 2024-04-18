@@ -1,11 +1,15 @@
 import streamlit as st
 from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+from streamlit_image_select import image_select
 import threading
 import av
 import cv2
 import numpy as np
 from module.display import display_module
 from module.clip_image import clip_image
+from module.sd_api import sam_predict
+from config import config
+import base64
 
 RTC_CONFIGURATION = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
@@ -33,7 +37,7 @@ class VideoTransformer(VideoProcessorBase):
             self.out_frame = img.copy()
 
         return av.VideoFrame.from_ndarray(img, format="bgr24")
-
+    
 def initialize():
     if 'display_num' not in st.session_state:
         st.session_state.display_num = 1
@@ -49,6 +53,16 @@ def initialize():
         st.session_state.clip_module = clip_image()
     if 'clip_position' not in st.session_state:
         st.session_state.clip_position = None
+    if 'prompts' not in st.session_state:
+        st.session_state.prompts = ""
+    if 'negative_prompts' not in st.session_state:
+        st.session_state.negative_prompts = ""
+    if 'dino_prompts' not in st.session_state:
+        st.session_state.dino_prompts = ""
+    if 'mask_path_list' not in st.session_state:
+        st.session_state.mask_path_list = None
+    if 'mask_path' not in st.session_state:
+        st.session_state.mask_path = "./images/output/masks/output_image_0.png"
 
 def main():
     initialize()
@@ -123,7 +137,7 @@ def main():
     if st.session_state.clip_position == None:
         return
     st.header("Step4. image to image 画像の撮影",divider=True)
-    st.markdown("")
+    st.markdown("Image to Image を行う写真を撮影します。")
     st.markdown(F"生成画像サイズ: {st.session_state.clip_position['width']}x{st.session_state.clip_position['height']}")
     st.markdown(F"スクエアポジション: x{st.session_state.clip_position['x']} / y{st.session_state.clip_position['y']}")
 
@@ -146,6 +160,40 @@ def main():
                     cv2.imwrite(i2i_image_path, webrtc_ctx.video_processor.out_frame)  # 画像を保存
                     clip_module.crop_from_another_image(st.session_state.clip_position,i2i_image_path,i2i_image_path) #画像から切り抜き
                     st.image(i2i_image_path, channels="BGR", caption="I2I ソースイメージ")
+    
+    st.header("Step.4 マスク 設定",divider=True)
+    col1,col2 = st.columns([3,1])
+    with col1:
+        st.session_state.dino_prompts = st.text_area(
+            "Prompt",
+            value = st.session_state.dino_prompts,
+            key="dino_prompt"
+        )
+    with col2:
+        if st.button("Generate Mask",type='primary'):
+            st.session_state.mask_path_list = sam_predict(i2i_image_path,st.session_state.dino_prompts)
+    if st.session_state.mask_path_list is not None:
+        st.session_state.mask_path = image_select(label='Select Maks',
+                            images=st.session_state.mask_path_list)
+        st.write(st.session_state.mask_path)
+    
+    st.header("Step.5 img2img 設定",divider=True)
+    col1,col2 = st.columns([3,1])
+    with col1:
+        st.session_state.prompts = st.text_area(
+            "Prompt",
+            value=st.session_state.prompts,
+            key="i2i_prompt"
+        )
+        st.session_state.negative_prompts = st.text_area(
+            "Negative prompt",
+            value=st.session_state.negative_prompts
+        )
+    with col2:
+        if st.button("Generate",type='primary'):
+            pass
+        preset_prompt_on = st.toggle("Basic Prompt")
+        preset_ngprompt_on = st.toggle("Basic NG Prompt")
 
 if __name__ == "__main__":
     main()
