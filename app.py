@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from module.display import display_module
 from module.clip_image import clip_image
-from module.sd_api import sam_predict
+from module.sd_api import sam_predict,img2img_dpth_api
 from config import config
 import base64
 
@@ -63,6 +63,10 @@ def initialize():
         st.session_state.mask_path_list = None
     if 'mask_path' not in st.session_state:
         st.session_state.mask_path = "./images/output/masks/output_image_0.png"
+    if 'image_path_list' not in st.session_state:
+        st.session_state.image_path_list = None
+    if 'image_path' not in st.session_state:
+        st.session_state.image_path = "./images/output/output_image_0.png"
 
 def main():
     initialize()
@@ -191,9 +195,26 @@ def main():
         )
     with col2:
         if st.button("Generate",type='primary'):
-            pass
+            st.session_state.mask_path = None
+            if preset_prompt_on:
+                st.session_state.prompts = st.session_state.prompts + config.preset_prompt
+            if preset_ngprompt_on:
+                st.session_state.negative_prompts = st.session_state.negative_prompts + config.preset_ng_prompt
+            st.session_state.image_path_list = img2img_dpth_api(st.session_state.prompts,
+                                                 st.session_state.negative_prompts,
+                                                 i2i_image_path,
+                                                 st.session_state.mask_path,
+                                                 batch_size)
+
         preset_prompt_on = st.toggle("Basic Prompt")
         preset_ngprompt_on = st.toggle("Basic NG Prompt")
+        batch_size = st.slider('Batch Size',1,10,3)
+
+    if st.session_state.image_path_list != None:
+        st.session_state.image_path = image_select(label='Result Data',
+                            images = st.session_state.image_path_list)
+        st.write(st.session_state.mask_path)
+        display.update_image_path(st.session_state.mask_path,True)
 
 if __name__ == "__main__":
     main()
