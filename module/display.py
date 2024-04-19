@@ -2,9 +2,6 @@ import pygame,re
 from screeninfo import get_monitors
 from PIL import Image
 import threading
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import Qt
 import time
 
 class display_module:
