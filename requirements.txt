@@ -1,0 +1,7 @@
+streamlit
+streamlit_webrtc
+av
+opencv-python
+numpy
+pygame
+screeninfo
