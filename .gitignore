@@ -1,7 +1,7 @@
 /02026.png
 /black_image.png
-/gungirls_2560x1080.jpg
 /test.py
 /test2.py
-/images
+/images/output/*.png
+/images/output/masks/*.png
 **/__pycache__/**
