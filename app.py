@@ -8,7 +8,7 @@ from module.display import display_module
 from module.clip_image import clip_image
 from module.sd_api import sam_predict,img2img_dpth_api
 from config import config
-import os
+import os,time
 
 RTC_CONFIGURATION = RTCConfiguration(
     {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
@@ -170,7 +170,9 @@ def main():
             display.create_image(resolution_list[0],resolution_list[1],'#000000','./images/black_BG.png')
             display.update_image_path('./images/black_BG.png',False)
 
+        timer = st.slider("timer",0,60,10)
         if st.button("スクリーンショットを撮影する",key="i2i_shutter"):
+            time.sleep(timer)
             with webrtc_ctx.video_processor.frame_lock:
                 if webrtc_ctx.video_processor.out_frame is not None:
                     cv2.imwrite(i2i_image_path, webrtc_ctx.video_processor.out_frame)  # 画像を保存
